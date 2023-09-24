@@ -1,5 +1,8 @@
 [global]
 
+[server]
+runOnSave = true
+
 [client]
 toolbarMode = "auto"
 #toolbarMode = "minimal"

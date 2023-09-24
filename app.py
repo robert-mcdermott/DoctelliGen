@@ -1,7 +1,13 @@
 import os
+import sys
+import base64
+
 from dotenv import load_dotenv
 from glob import glob
 import streamlit as st
+# following two imports needed for the if __main__ section to start ST from this script
+from streamlit.web import cli as stcli  # used in if __main__
+from streamlit import runtime # used in if __main__
 from langchain.chat_models import ChatOpenAI
 from langchain.llms import OpenAI
 from langchain.callbacks import get_openai_callback
@@ -15,19 +21,31 @@ from qdrant_client.models import Distance, VectorParams
 
 QDRANT_PATH = "./local_qdrant"
 COLLECTION_NAME = "my_collection_2"
-temperature = 0.0
 
 def init_page():
     st.set_page_config(
-        page_title="Ask Architecture Documentation",
+        page_title="Document Chat",
         page_icon="🤖",
         layout="wide",
         initial_sidebar_state="collapsed"
     )
+    header_html = """
+        <style>   
+            #watermark-logo {{
+                opacity: 0.9;
+                transform: scale(0.5);
+              }}
+        </style>
+    <div align="center">
+    <img id='watermark-logo' src='data:image/png;base64,{}' class='img-fluid'>
+    </div>
+    """.format(img_to_bytes("media/logo.png"))
 
-    st.sidebar.title("Nav")
-    st.session_state.costs = []
-
+    st.markdown(header_html, unsafe_allow_html=True)
+    #st.sidebar.title("Nav")
+    if 'costs' not in st.session_state:
+        st.session_state.costs = []
+    
     # This will hide the streamlit menu and "made with streamlit" footer
     #hide_streamlit_style = """
     #        <style>
@@ -36,8 +54,7 @@ def init_page():
     #        </style>
     #        """
     #st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-
+    
 def select_model():
     #model = st.sidebar.radio("Choose a model:", ("GPT-3.5", "GPT-3.5-16k", "GPT-4"))
     #if model == "GPT-3.5":
@@ -48,7 +65,7 @@ def select_model():
     #    st.session_state.model_name = "gpt-4"
 
     st.session_state.model_name = "gpt-3.5-turbo-16k"
-    temperature = st.sidebar.slider('Temperature', 0.0, 2.0, 0.3)
+    temperature = st.sidebar.slider('Temperature', 0.0, 2.0, 0.3, 0.1)
     # 300: The number of tokens for instructions outside the main text
     st.session_state.max_token = OpenAI.modelname_to_contextsize(st.session_state.model_name) - 300
     return ChatOpenAI(temperature=temperature, model_name=st.session_state.model_name)
@@ -100,7 +117,6 @@ def load_qdrant():
 def build_vector_store(pdf_text):
     qdrant = load_qdrant()
     qdrant.add_texts(pdf_text)
-
     # You can also do it like this. In this case, the vector database will be initialized every time.
     # Qdrant.from_texts(
     #     pdf_text,
@@ -141,25 +157,24 @@ def ask(qa, query):
     with get_openai_callback() as cb:
         # query / result / source_documents
         answer = qa(query)
-
     return answer, cb.total_cost
 
 
 def page_ask_my_pdf():
-    st.title("Ask Architecture Documents")
+    st.title("Document Q&A")
 
     llm = select_model()
     container = st.container()
     response_container = st.container()
 
     with container:
-        query = st.text_input("Query: ", key="input")
+        query = st.text_input("Enter Query: ", key="input")
         if not query:
             answer = None
         else:
             qa = build_qa_model(llm)
             if qa:
-                with st.spinner("ChatGPT is typing ..."):
+                with st.spinner("The LLM is typing ..."):
                     answer, cost = ask(qa, query)
                 st.session_state.costs.append(cost)
             else:
@@ -171,13 +186,20 @@ def page_ask_my_pdf():
                 st.write(answer)
 
 
+# so we can display images in streamlit
+def img_to_bytes(img):
+    with open(img, "rb") as f:
+        img_bytes = f.read()
+        encoded = base64.b64encode(img_bytes).decode()
+    return encoded
+
 def main():
     init_page()
 
-    selection = st.sidebar.radio("Go to", ["PDF Upload", "Ask Architecture Documentation"])
+    selection = st.sidebar.radio("Go to", ["Ask Questions", "PDF Upload"])
     if selection == "PDF Upload":
         page_pdf_upload_and_build_vector_db()
-    elif selection == "Ask Architecture Documentation":
+    elif selection == "Ask Questions":
         page_ask_my_pdf()
 
     costs = st.session_state.get('costs', [])
@@ -189,4 +211,8 @@ def main():
 
 if __name__ == '__main__':
     load_dotenv()
-    main()
+    if runtime.exists():
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())
