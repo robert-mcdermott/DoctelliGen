@@ -1,0 +1,13 @@
+[global]
+
+[client]
+toolbarMode = "auto"
+#toolbarMode = "minimal"
+
+[theme]
+base="light"
+primaryColor="#fb03ff"
+secondaryBackgroundColor="#d8e8fd"
+textColor="#000000"
+
+
