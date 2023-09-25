@@ -19,8 +19,8 @@ from langchain.chains import RetrievalQA
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 
-QDRANT_PATH = "./local_qdrant"
-COLLECTION_NAME = "my_collection_2"
+QDRANT_PATH = "./local_qdrant_test2"
+COLLECTION_NAME = "my_collection"
 
 def init_page():
     st.set_page_config(
@@ -73,7 +73,7 @@ def select_model():
 
 def get_pdf_text():
     uploaded_file = st.file_uploader(
-        label='Upload your PDF here 📃',
+        label='Upload your PDF here',
         type='pdf'
     )
     if uploaded_file:
@@ -142,9 +142,8 @@ def build_qa_model(llm):
         verbose=True
     )
 
-
 def page_pdf_upload_and_build_vector_db():
-    st.title("PDF Upload")
+    st.title("📄PDF Upload ⬆️")
     container = st.container()
     with container:
         pdf_text = get_pdf_text()
@@ -161,20 +160,20 @@ def ask(qa, query):
 
 
 def page_ask_my_pdf():
-    st.title("Document Q&A")
+    st.title("📄Document Q&A❓")
 
     llm = select_model()
     container = st.container()
     response_container = st.container()
 
     with container:
-        query = st.text_input("Enter Query: ", key="input")
+        query = st.text_area("Enter Query: ", key="input")
         if not query:
             answer = None
         else:
             qa = build_qa_model(llm)
             if qa:
-                with st.spinner("The LLM is typing ..."):
+                with st.spinner("🤖 The LLM is typing..."):
                     answer, cost = ask(qa, query)
                 st.session_state.costs.append(cost)
             else:
@@ -196,17 +195,17 @@ def img_to_bytes(img):
 def main():
     init_page()
 
-    selection = st.sidebar.radio("Go to", ["Ask Questions", "PDF Upload"])
-    if selection == "PDF Upload":
+    selection = st.sidebar.radio("Go to", ["❓Ask Questions", "⬆️PDF Upload"])
+    if selection == "⬆️PDF Upload":
         page_pdf_upload_and_build_vector_db()
-    elif selection == "Ask Questions":
+    elif selection == "❓Ask Questions":
         page_ask_my_pdf()
 
     costs = st.session_state.get('costs', [])
-    st.sidebar.markdown("## Costs")
-    st.sidebar.markdown(f"**Total cost: ${sum(costs):.5f}**")
-    for cost in costs:
-        st.sidebar.markdown(f"- ${cost:.5f}")
+    #st.sidebar.markdown("## Costs")
+    #st.sidebar.markdown(f"**Total cost: ${sum(costs):.5f}**")
+    #for cost in costs:
+    #    st.sidebar.markdown(f"- ${cost:.5f}")
 
 
 if __name__ == '__main__':
