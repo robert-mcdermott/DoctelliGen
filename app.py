@@ -1,6 +1,7 @@
 import os
 import sys
 import base64
+from io import StringIO
 
 from dotenv import load_dotenv
 from glob import glob
@@ -56,14 +57,6 @@ def init_page():
     #st.markdown(hide_streamlit_style, unsafe_allow_html=True)
     
 def select_model():
-    #model = st.sidebar.radio("Choose a model:", ("GPT-3.5", "GPT-3.5-16k", "GPT-4"))
-    #if model == "GPT-3.5":
-    #    st.session_state.model_name = "gpt-3.5-turbo"
-    #elif model == "GPT-3.5":
-    #    st.session_state.model_name = "gpt-3.5-turbo-16k"
-    #else:
-    #    st.session_state.model_name = "gpt-4"
-
     st.session_state.model_name = "gpt-3.5-turbo-16k"
     temperature = st.sidebar.slider('Temperature', 0.0, 2.0, 0.3, 0.1)
     # 300: The number of tokens for instructions outside the main text
@@ -73,17 +66,18 @@ def select_model():
 
 def get_pdf_text():
     uploaded_file = st.file_uploader(
-        label='Upload your PDF here',
-        type='pdf'
+        label='Upload your documents here',
+        type=['txt','pdf']
     )
     if uploaded_file:
-        pdf_reader = PdfReader(uploaded_file)
-        text = '\n\n'.join([page.extract_text() for page in pdf_reader.pages])
+        if uploaded_file.name.endswith('.pdf'.lower()):
+            pdf_reader = PdfReader(uploaded_file)
+            text = '\n\n'.join([page.extract_text() for page in pdf_reader.pages])
+        else:
+            text = StringIO(uploaded_file.getvalue().decode("utf-8")).getvalue()
+
         text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             model_name="text-embedding-ada-002",
-            # The appropriate chunk size needs to be adjusted based on the PDF being queried.
-            # If it's too large, it may not be able to reference information from various parts during question answering.
-            # On the other hand, if it's too small, one chunk may not contain enough contextual information.
             chunk_size=500,
             chunk_overlap=100,
         )
@@ -98,6 +92,8 @@ def load_qdrant():
     # Get all collection names.
     collections = client.get_collections().collections
     collection_names = [collection.name for collection in collections]
+    for collection in collection_names:
+        print("collection: {}".format(collection))
 
     # If the collection does not exist, create it.
     if COLLECTION_NAME not in collection_names:
@@ -143,12 +139,12 @@ def build_qa_model(llm):
     )
 
 def page_pdf_upload_and_build_vector_db():
-    st.title("📄PDF Upload ⬆️")
+    st.title("📄Document Upload ⬆️")
     container = st.container()
     with container:
         pdf_text = get_pdf_text()
         if pdf_text:
-            with st.spinner("Loading PDF ..."):
+            with st.spinner("Loading Document ..."):
                 build_vector_store(pdf_text)
 
 
@@ -167,7 +163,7 @@ def page_ask_my_pdf():
     response_container = st.container()
 
     with container:
-        query = st.text_area("Enter Query: ", key="input")
+        query = st.text_input("Enter Query: ", key="input")
         if not query:
             answer = None
         else:
@@ -195,8 +191,8 @@ def img_to_bytes(img):
 def main():
     init_page()
 
-    selection = st.sidebar.radio("Go to", ["❓Ask Questions", "⬆️PDF Upload"])
-    if selection == "⬆️PDF Upload":
+    selection = st.sidebar.radio("Go to", ["❓Ask Questions", "⬆️Document Upload"])
+    if selection == "⬆️Document Upload":
         page_pdf_upload_and_build_vector_db()
     elif selection == "❓Ask Questions":
         page_ask_my_pdf()
