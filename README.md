@@ -19,15 +19,15 @@ Document Query Dialog:
 Create an activate a new Python environment:
 
 ```bash
-conda create -n pdf-qa python=3.11
-conda activate pdf-qa
+conda create -n DoctelliGen python=3.11
+conda activate DoctelliGen
 ```
 
 Clone the repo and enter it:
 
 ```bash
-git clone https://github.com/robert-mcdermott/pdf-qa.git
-cd pdf-qa
+git clone https://github.com/robert-mcdermott/DoctelliGen.git
+cd DoctelliGen
 ```
 
 Install the dependencies (install the latest version of poetry if you don't have it):
