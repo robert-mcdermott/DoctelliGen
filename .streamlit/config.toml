@@ -9,8 +9,8 @@ toolbarMode = "auto"
 
 [theme]
 base="light"
-primaryColor="#fb03ff"
-secondaryBackgroundColor="#d8e8fd"
+primaryColor="#AA4AC4"
+secondaryBackgroundColor="#ccf9ff"
 textColor="#000000"
 
 

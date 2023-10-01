@@ -9,6 +9,7 @@ import streamlit as st
 # following two imports needed for the if __main__ section to start ST from this script
 from streamlit.web import cli as stcli  # used in if __main__
 from streamlit import runtime # used in if __main__
+from streamlit_option_menu import option_menu
 from langchain.chat_models import ChatOpenAI
 from langchain.llms import OpenAI
 from langchain.callbacks import get_openai_callback
@@ -20,15 +21,18 @@ from langchain.chains import RetrievalQA
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 
-QDRANT_PATH = "./local_qdrant_test2"
-COLLECTION_NAME = "my_collection"
+QDRANT_PATH = "./local_qdrant"
+COLLECTION_NAME = "collection01"
 
 def init_page():
+    """
+    Initialize the webapp
+    """
     st.set_page_config(
         page_title="Document Chat",
         page_icon="🤖",
         layout="wide",
-        initial_sidebar_state="collapsed"
+        initial_sidebar_state="expanded"
     )
     header_html = """
         <style>   
@@ -43,7 +47,6 @@ def init_page():
     """.format(img_to_bytes("media/logo.png"))
 
     st.markdown(header_html, unsafe_allow_html=True)
-    #st.sidebar.title("Nav")
     if 'costs' not in st.session_state:
         st.session_state.costs = []
     
@@ -57,17 +60,26 @@ def init_page():
     #st.markdown(hide_streamlit_style, unsafe_allow_html=True)
     
 def select_model():
+    """
+    Select the OpenAI model to use (turbo-16k for largest context,
+    set the max context context size,
+    set the temperature (0.3 seems to work well),
+    and return the LLM object
+    """
     st.session_state.model_name = "gpt-3.5-turbo-16k"
-    temperature = st.sidebar.slider('Temperature', 0.0, 2.0, 0.3, 0.1)
+    temperature = 0.3
     # 300: The number of tokens for instructions outside the main text
     st.session_state.max_token = OpenAI.modelname_to_contextsize(st.session_state.model_name) - 300
     return ChatOpenAI(temperature=temperature, model_name=st.session_state.model_name)
 
-
-def get_pdf_text():
+def get_text_embeddings():
+    """
+    Extract text from the documents, chunk it up with some overlap, convert to embeddings and return chunks.
+    you can set the embedding model, chunk size and overlap amount here
+    """
     uploaded_file = st.file_uploader(
         label='Upload your documents here',
-        type=['txt','pdf']
+        type=['txt','pdf','md']
     )
     if uploaded_file:
         if uploaded_file.name.endswith('.pdf'.lower()):
@@ -76,6 +88,7 @@ def get_pdf_text():
         else:
             text = StringIO(uploaded_file.getvalue().decode("utf-8")).getvalue()
 
+        #The chunk size and overlap might need to be adjusted based on document size
         text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             model_name="text-embedding-ada-002",
             chunk_size=500,
@@ -87,8 +100,10 @@ def get_pdf_text():
 
 
 def load_qdrant():
+    """
+    Create a quadrant client, open the DB and collection and return it
+    """
     client = QdrantClient(path=QDRANT_PATH)
-
     # Get all collection names.
     collections = client.get_collections().collections
     collection_names = [collection.name for collection in collections]
@@ -109,13 +124,15 @@ def load_qdrant():
         embeddings=OpenAIEmbeddings()
     )
 
-
-def build_vector_store(pdf_text):
+def build_vector_store(text):
+    """
+    Write the embeddings to the vector DB
+    """
     qdrant = load_qdrant()
-    qdrant.add_texts(pdf_text)
+    qdrant.add_texts(text)
     # You can also do it like this. In this case, the vector database will be initialized every time.
     # Qdrant.from_texts(
-    #     pdf_text,
+    #     text,
     #     OpenAIEmbeddings(),
     #     path="./local_qdrant",
     #     collection_name="my_documents",
@@ -123,11 +140,14 @@ def build_vector_store(pdf_text):
 
 
 def build_qa_model(llm):
+    """
+    Build the embedding query object that will be used to find chunks to return 
+    """
     qdrant = load_qdrant()
     retriever = qdrant.as_retriever(
         # There are also "mmr," "similarity_score_threshold," and others.
         search_type="similarity",
-        # How many documents to retrieve? (default: 4)
+        # How many documents to retrieve? This should be adjusted to fit in your context size
         search_kwargs={"k":10}
     )
     return RetrievalQA.from_chain_type(
@@ -138,26 +158,32 @@ def build_qa_model(llm):
         verbose=True
     )
 
-def page_pdf_upload_and_build_vector_db():
+def page_doc_upload():
+    """
+    Page where documents are uploaded
+    """
     st.title("📄Document Upload ⬆️")
     container = st.container()
     with container:
-        pdf_text = get_pdf_text()
-        if pdf_text:
+        text = get_text_embeddings()
+        if text:
             with st.spinner("Loading Document ..."):
-                build_vector_store(pdf_text)
-
+                build_vector_store(text)
 
 def ask(qa, query):
+    """
+    Send question to LLM
+    """
     with get_openai_callback() as cb:
         # query / result / source_documents
         answer = qa(query)
     return answer, cb.total_cost
 
-
-def page_ask_my_pdf():
+def page_ask_docs():
+    """
+    Page to answer questions
+    """
     st.title("📄Document Q&A❓")
-
     llm = select_model()
     container = st.container()
     response_container = st.container()
@@ -174,15 +200,16 @@ def page_ask_my_pdf():
                 st.session_state.costs.append(cost)
             else:
                 answer = None
-
         if answer:
             with response_container:
                 st.markdown("## Answer")
-                st.write(answer)
-
+                st.markdown(answer['result'])
 
 # so we can display images in streamlit
 def img_to_bytes(img):
+    """
+    Fetch and image from from the disk and return it as bytes so streamlit can display it
+    """
     with open(img, "rb") as f:
         img_bytes = f.read()
         encoded = base64.b64encode(img_bytes).decode()
@@ -190,19 +217,30 @@ def img_to_bytes(img):
 
 def main():
     init_page()
-
-    selection = st.sidebar.radio("Go to", ["❓Ask Questions", "⬆️Document Upload"])
-    if selection == "⬆️Document Upload":
-        page_pdf_upload_and_build_vector_db()
-    elif selection == "❓Ask Questions":
-        page_ask_my_pdf()
-
+    #This gets and prints the OpenAI charges. commented out as not somethings we'd want to show users
     costs = st.session_state.get('costs', [])
     #st.sidebar.markdown("## Costs")
     #st.sidebar.markdown(f"**Total cost: ${sum(costs):.5f}**")
     #for cost in costs:
     #    st.sidebar.markdown(f"- ${cost:.5f}")
-
+    with st.sidebar:
+        selection2 = option_menu(
+            menu_title='Tasks',
+            options=['Ask Questions','Upload Docs'],
+            icons=['bi-chat-left-dots-fill','cloud-upload-fill'],
+            menu_icon='bi-list',
+            default_index=0,
+            styles={
+                "container": {"padding": "1!important","background-color":'#0A799A'},
+                "menu-title": {"color": "white", "font-size": "20px", "font-weight": "bold"},
+                "icon": {"color": "white", "font-size": "16px"}, 
+                "nav-link": {"color":"white","font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#FFB500"},
+                "nav-link-selected": {"background-color": "#AA4AC4"},}    
+            )
+    if selection2 == "Ask Questions":
+        page_ask_docs()
+    if selection2 == "Upload Docs":
+        page_doc_upload()
 
 if __name__ == '__main__':
     load_dotenv()
