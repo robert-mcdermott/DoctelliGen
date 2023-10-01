@@ -1,6 +1,7 @@
-# AI/LLM Powered Document Query
+# DoctelliGen
+### An AI/LLM Powered Document Query
 
-A simple app that allows you to upload documents (pdf, text and md currently) and they use a Large Language Model (LLM) to query the documents.
+A web application that allows you to upload documents (pdf, text and md currently) and then use a Large Language Model (LLM) to query the documents and receive relevant answers.
 
 ## Example
 
